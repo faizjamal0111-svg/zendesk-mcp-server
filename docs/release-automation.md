@@ -57,8 +57,9 @@ each new version automatically.
 - **Gating.** semantic-release tags the release commit only when it cuts a
   release, so the publish steps (and the image job) run **only** when a stable
   `vX.Y.Z` tag points at `HEAD` after it; `chore:` / `docs:` pushes (no release)
-  never touch the registry. Not a `package.json` diff: retrying a release whose tag was
-  deleted after a partial failure starts with `package.json` already bumped.
+  never touch the registry. Not a `package.json` diff: retrying a release whose
+  tag was deleted after a partial failure starts with `package.json` already
+  bumped.
 - **Manifest.** `server.json` is **version-controlled** at the repo root
   (committed and reviewable). [`scripts/build-server-json.mjs`](../scripts/build-server-json.mjs)
   *seeds* it from everything that already lives in `package.json` (name from
@@ -86,12 +87,6 @@ each new version automatically.
   `id-token: write` GitHub OIDC token, the same permission npm Trusted
   Publishing already relies on. No new secret, and the `io.github.fruggr/*`
   namespace is authorized because the workflow runs in the `fruggr` org's repo.
-- **Catch-up.** A version on npm whose registry entry or image is missing is
-  mirrored by running Release by hand (*Actions* → *Release* → *Run workflow*
-  on `main`, with the version). That run checks out the `v<version>` tag, skips
-  semantic-release, refuses a version npm does not serve or that is not the
-  newest release (the image job moves `latest`), then runs the MCP registry
-  publish (a single attempt) and the `image` job as a release would.
 - **Resilience.** The publish is retried a few times to absorb npm propagation
   lag (the registry validates by fetching the freshly published npm tarball).
 
