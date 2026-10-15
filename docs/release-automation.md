@@ -60,6 +60,11 @@ each new version automatically.
   never touch the registry. Not a `package.json` diff: retrying a release whose
   tag was deleted after a partial failure starts with `package.json` already
   bumped.
+- **Push retries.** semantic-release runs with
+  [`scripts/git-retry/git`](../scripts/git-retry/git) ahead of git on `PATH`: a
+  failed `git push` (release commit, tags, note) is retried up to three times,
+  since a transient GitHub refusal there would otherwise leave the tag pushed
+  and nothing published, with no automatic way back.
 - **Manifest.** `server.json` is **version-controlled** at the repo root
   (committed and reviewable). [`scripts/build-server-json.mjs`](../scripts/build-server-json.mjs)
   *seeds* it from everything that already lives in `package.json` (name from

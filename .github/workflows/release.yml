@@ -99,7 +99,12 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
-      - run: pnpm exec semantic-release
+      # scripts/git-retry/git retries the pushes semantic-release makes, so one
+      # transient GitHub refusal no longer leaves a release half published.
+      - run: |
+          REAL_GIT="$(command -v git)"
+          export REAL_GIT
+          PATH="$GITHUB_WORKSPACE/scripts/git-retry:$PATH" pnpm exec semantic-release
         env:
           # The App token, not secrets.GITHUB_TOKEN: it authenticates both the
           # `git push HEAD:main` of @semantic-release/git (which needs the
