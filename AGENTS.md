@@ -44,10 +44,12 @@ web, which generates them: leave those alone, don't imitate the shape by hand.
 
 ## Architecture
 
-Transports: stdio (SDK `StdioServerTransport`) plus a `node:http` HTTP transport
-that wraps `NodeStreamableHTTPServerTransport` next to its own OAuth authorization
-server (`auth/server/`, on `oidc-provider`); HTTP builds a per-session `McpServer`
-so the user's Zendesk token is captured in the tools' closure — no shared state.
+Transports: stdio and a `node:http` HTTP transport next to its own OAuth
+authorization server (`auth/server/`, on `oidc-provider`), both serving MCP 2025
+and 2026-07-28 (`docs/decisions/protocol-eras.md`). The user's Zendesk token is
+captured in the tools' closure — no shared state. A notification carries no
+sensitive data; `requestState` goes only through `utils/request-state.ts`;
+diagnostics go to stderr, never to an MCP logging channel.
 `index.ts` imports each transport lazily, and `dist/` inlines every dependency
 (the package declares none): never statically import the HTTP stack, or a
 package only stdio needs (such as `open`), from a module both transports load —
@@ -134,12 +136,11 @@ quality bar still hold — the freedom is from Zendesk's shape, not from craft.)
   (`pnpm test:mutation:diff origin/main HEAD` reproduces it). That gate is the whole
   contract: **the score is not a target and 100 % is not the goal.** A survivor in a line
   you changed means an assertion is missing or too loose — tighten it, never weaken one to
-  go green. Everywhere else, leave a survivor alone: **waive late, not early**, so an
-  equivalent mutant stays escaped until the gate actually trips on it and the person
-  touching the line writes a
+  go green. The scope is kept at **zero escaped mutants**: a survivor that is not worth a
+  test (internal log names without an observability contract, human-only debugging prose, equivalents) gets a
   `// Stryker disable next-line <mutator>: <reason>` whose reason is one sentence, two
-  lines at most. A reason that needs a paragraph goes in the ADR's waiver table instead. Rationale, scope and costs:
-  `docs/decisions/mutation-testing.md`.
+  lines at most, so the dashboard shows only new, untriaged survivors. Rationale, scope
+  and costs: `docs/decisions/mutation-testing.md`.
 
 ## Planning
 

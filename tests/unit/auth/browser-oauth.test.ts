@@ -75,7 +75,6 @@ const makeLogger = () => ({
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
-  attachServer: vi.fn(),
 });
 
 const SUB = 'testsubdomain';
@@ -381,7 +380,6 @@ describe('authenticateViaBrowser', () => {
       error: vi.fn((event: string, fields?: Record<string, unknown>) => {
         errorEvents.push({ event, fields });
       }),
-      attachServer: vi.fn(),
     };
 
     // The browser fails to open (the #60 symptom). The flow must NOT crash: the
@@ -408,6 +406,79 @@ describe('authenticateViaBrowser', () => {
     expect(failure?.fields?.['platform']).toBe(process.platform);
     // Environment presence is reported as booleans (never values).
     expect(typeof failure?.fields?.['hasSystemRoot']).toBe('boolean');
+  });
+
+  it('reports which launcher env vars are present, by their exact names', async () => {
+    mswServer.use(oauthTokenHandler);
+    const logger = makeLogger();
+    for (const name of ['SYSTEMROOT', 'WINDIR', 'ComSpec', 'PATH', 'DISPLAY']) {
+      vi.stubEnv(name, 'set');
+    }
+    openMock.mockImplementation(async (url: string) => {
+      const redirectUri = new URL(url).searchParams.get('redirect_uri');
+      setImmediate(() => {
+        fetch(`${redirectUri}?code=the-auth-code`).catch(() => {});
+      });
+      throw new Error('spawn failed');
+    });
+
+    try {
+      await authenticateViaBrowser(FLOW, logger);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'oauth_browser_open_failed',
+      expect.objectContaining({
+        hasSystemRoot: true,
+        hasWindir: true,
+        hasComSpec: true,
+        hasPath: true,
+        hasDisplay: true,
+      }),
+    );
+  });
+
+  it('still logs the failure when open rejects with no error object at all', async () => {
+    mswServer.use(oauthTokenHandler);
+    const logger = makeLogger();
+    openMock.mockImplementation(async (url: string) => {
+      const redirectUri = new URL(url).searchParams.get('redirect_uri');
+      setImmediate(() => {
+        fetch(`${redirectUri}?code=the-auth-code`).catch(() => {});
+      });
+      return Promise.reject(undefined);
+    });
+
+    await authenticateViaBrowser(FLOW, logger);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'oauth_browser_open_failed',
+      expect.objectContaining({ error: 'undefined', errorCode: undefined }),
+    );
+  });
+
+  it('prints the authorize URL on stderr, ungated by the log level, for a browser that never opens', async () => {
+    mswServer.use(oauthTokenHandler);
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let authorizeUrl: string | undefined;
+    openMock.mockImplementation(async (url: string) => {
+      authorizeUrl = url;
+      const redirectUri = new URL(url).searchParams.get('redirect_uri');
+      setImmediate(() => {
+        fetch(`${redirectUri}?code=the-auth-code`).catch(() => {});
+      });
+      return {};
+    });
+
+    try {
+      await authenticateViaBrowser(FLOW);
+      expect(authorizeUrl).toBeDefined();
+      expect(stderr).toHaveBeenCalledWith(`If the browser doesn't open, visit: ${authorizeUrl}`);
+    } finally {
+      stderr.mockRestore();
+    }
   });
 });
 
@@ -626,7 +697,6 @@ describe('startBrowserAuth', () => {
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-        attachServer: vi.fn(),
       };
       const started = await startBrowserAuth(
         { subdomain: SUB, oauthClientId: CLIENT_ID, callbackPort: 0, readOnly: false },
